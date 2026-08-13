@@ -28,9 +28,9 @@ if (hasAnyReleaseSigning && !hasReleaseSigning) {
     throw new GradleException("Release signing requires RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD")
 }
 
-def releaseVersionName = providers.environmentVariable("RELEASE_VERSION_NAME").orNull ?: "1.4.0"
+def releaseVersionName = providers.environmentVariable("RELEASE_VERSION_NAME").orNull ?: "1.0.0"
 def releaseVersionCodeText = providers.environmentVariable("RELEASE_VERSION_CODE").orNull
-def releaseVersionCode = releaseVersionCodeText == null ? 9 : Integer.parseInt(releaseVersionCodeText)
+def releaseVersionCode = releaseVersionCodeText == null ? 1 : Integer.parseInt(releaseVersionCodeText)
 
 android {
     namespace "com.jarman.triplepressunlock"

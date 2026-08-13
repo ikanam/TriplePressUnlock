@@ -50,12 +50,12 @@ jobs:
         run: |
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-              echo "Tag must look like v1.4.0 or v1.4.0-beta.1"
+              echo "Tag must look like v1.0.0 or v1.0.0-beta.1"
               exit 1
             fi
             version_name="${GITHUB_REF_NAME#v}"
           else
-            version_name="1.4.0-manual.${GITHUB_RUN_NUMBER}"
+            version_name="1.0.0-manual.${GITHUB_RUN_NUMBER}"
           fi
           echo "name=$version_name" >> "$GITHUB_OUTPUT"
           echo "code=$((10000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_OUTPUT"

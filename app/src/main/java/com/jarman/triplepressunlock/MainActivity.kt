@@ -1,13 +1,16 @@
 package com.jarman.triplepressunlock
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -22,6 +25,7 @@ import android.widget.Toast
 
 class MainActivity : Activity() {
     private lateinit var statusView: TextView
+    private lateinit var backgroundAccessButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,6 +95,12 @@ class MainActivity : Activity() {
         }
         content.addView(accessibilityButton, topMargin(18))
 
+        backgroundAccessButton = secondaryButton(getString(R.string.request_background_access))
+        backgroundAccessButton.setOnClickListener {
+            requestBackgroundAccess()
+        }
+        content.addView(backgroundAccessButton, topMargin(10))
+
         val testButton = secondaryButton(getString(R.string.test_lock_overlay))
         testButton.setOnClickListener {
             if (!UnlockAccessibilityService.lockNow()) {
@@ -137,6 +147,39 @@ class MainActivity : Activity() {
         val enabled = isAccessibilityServiceEnabled()
         statusView.setText(if (enabled) R.string.service_enabled else R.string.service_disabled)
         statusView.setTextColor(Color.parseColor(if (enabled) "#15803D" else "#B45309"))
+        backgroundAccessButton.setText(
+            if (isIgnoringBatteryOptimizations()) {
+                R.string.background_access_granted
+            } else {
+                R.string.request_background_access
+            },
+        )
+    }
+
+    @SuppressLint("BatteryLife")
+    private fun requestBackgroundAccess() {
+        if (isIgnoringBatteryOptimizations()) {
+            toast(R.string.background_access_already_granted)
+            return
+        }
+
+        val directRequest = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:$packageName")
+        }
+        try {
+            startActivity(directRequest)
+        } catch (_: RuntimeException) {
+            try {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            } catch (_: RuntimeException) {
+                toast(R.string.background_access_settings_error)
+            }
+        }
+    }
+
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        return powerManager.isIgnoringBatteryOptimizations(packageName)
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {

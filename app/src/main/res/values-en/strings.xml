@@ -11,12 +11,16 @@
     <string name="supported_keys">Supports ABXY, D-pad, R1/R2, L1/L2, Select, and Start</string>
     <string name="open_accessibility_settings">Open Accessibility Settings</string>
     <string name="accessibility_settings_error">Unable to open Accessibility Settings</string>
+    <string name="request_background_access">Allow Background Use (Ignore Battery Optimization)</string>
+    <string name="background_access_granted">Background Use Allowed</string>
+    <string name="background_access_already_granted">The app is already allowed to ignore battery optimization</string>
+    <string name="background_access_settings_error">Unable to open battery optimization settings</string>
     <string name="test_lock_overlay">Test Lock Screen Now</string>
     <string name="accessibility_required">Enable the accessibility service first</string>
     <string name="open_security_settings">Open System Screen Lock Settings</string>
     <string name="security_settings_error">Unable to open screen lock settings</string>
     <string name="setup_steps_title">Setup</string>
-    <string name="setup_steps">1. Set the system screen lock to “None”\n2. Enable “TriplePress Unlock Service” in Accessibility Settings\n3. Test it and confirm controller buttons can unlock the screen\n4. Allow the app to run in the background in your device’s battery or background settings</string>
+    <string name="setup_steps">1. Set the system screen lock to “None”\n2. Enable “TriplePress Unlock Service” in Accessibility Settings\n3. Tap “Allow Background Use” and confirm the system prompt\n4. Test it and confirm controller buttons can unlock the screen</string>
     <string name="touch_unlock_and_disclaimer">Touch unlock: Swipe far enough in any direction with one finger. A tap or small movement will not unlock.\n\nThis app only prevents accidental input. It does not replace a PIN, password, or encrypted system lock. It does not read screen content, access the network, poll in the background, or hold a wake lock.</string>
     <string name="service_enabled">● Service enabled</string>
     <string name="service_disabled">● Service disabled</string>

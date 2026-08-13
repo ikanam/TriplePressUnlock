@@ -4,19 +4,6 @@
 
 这不是密码锁。它只用于防止掌机放在包里时被触摸或手柄按键误操作，不能保护设备数据。
 
-## 工作方式
-
-- 无障碍服务由 Android 系统托管，不依赖永久 root。
-- 熄屏广播到达时只武装下一次亮屏；随后按电源键亮屏时才创建全屏无障碍覆盖层。
-- 锁定时吞掉触摸以及除电源控制键外的按键事件。
-- 支持 ABXY、方向键、R1/R2、L1/L2、Select 和 Start。
-- 同一个按键三次按下的相邻间隔必须小于 1 秒；切换按键或超时会从第一次重新计数。
-- 亮屏后 3 秒没有支持的按键输入会自动息屏；每次有效按键都会重新开始 3 秒计时。
-- 第三次同键按下后移除覆盖层；下一次熄屏时重新上锁。
-- 单指向任意方向滑动至少 120dp 也可解锁；点按、短距离移动和多指手势不会解锁。
-- 开启无障碍服务、覆盖安装或设备重启时不会立即显示遮罩；必须先经历一次熄屏，下一次亮屏才锁定。
-- 不联网、不轮询、不读取其他应用窗口、不持有唤醒锁。
-
 ## 安装
 
 调试 APK 位于：
@@ -36,12 +23,10 @@ Android 13 及以上版本可能限制侧载应用启用无障碍权限。如果
 ## 首次启用
 
 1. 打开应用，将系统锁屏方式设为“无”。
-2. 点击“打开无障碍设置”，启用“掌机三击解锁服务”。
+2. 点击“打开无障碍设置”，启用“三击解锁服务”。
 3. 返回应用，点击“立即测试锁定界面”。
 4. 连续按三次同一个支持的按键，确认能够解除锁定。
 5. 在设备的电池或后台管理中允许该应用自动运行，不要对它进行后台冻结。
-
-方向键同时兼容 Android DPAD 键值、系统导航方向键和常见的 `AXIS_HAT_X/Y` 轴事件。R2/L2 仍需要设备固件将它们上报为 Android 按键事件。
 
 ## 触屏解锁
 
@@ -67,44 +52,12 @@ adb shell settings put secure enabled_accessibility_services null
 项目只使用 Android 系统 API，没有第三方运行时依赖。
 应用源码与单元测试均使用 Kotlin；界面提供简体中文和英文，并跟随 Android 系统语言自动切换。
 
-## 发布签名与 GitHub Actions
+## 常见问题
 
-Release 构建会依次从 `local.properties`、Gradle 属性或环境变量读取以下配置：
+### 服务被系统杀掉怎么办？
 
-```properties
-RELEASE_STORE_FILE=/absolute/path/to/keystore.jks
-RELEASE_STORE_PASSWORD=your_store_password
-RELEASE_KEY_ALIAS=your_key_alias
-RELEASE_KEY_PASSWORD=your_key_password
-```
+请检查掌机是否内置了限制 App 在后台运行的软件或系统功能，并将“三击解锁”加入后台运行、自启动或电池优化白名单。
 
-`local.properties` 和常见 keystore 文件格式均已被 Git 忽略，不要把签名文件或密码提交到仓库。
+### AYANEO 系统还需要额外设置吗？
 
-GitHub 仓库需要在 **Settings → Secrets and variables → Actions** 中设置四个 Repository secrets：
-
-- `RELEASE_KEYSTORE_BASE64`：keystore 文件的 Base64 内容
-- `RELEASE_STORE_PASSWORD`：keystore 密码
-- `RELEASE_KEY_ALIAS`：签名密钥别名
-- `RELEASE_KEY_PASSWORD`：签名密钥密码
-
-在 macOS 上可以使用以下命令将 keystore 的 Base64 内容复制到剪贴板，再粘贴为 `RELEASE_KEYSTORE_BASE64`：
-
-```sh
-base64 < "/absolute/path/to/keystore.jks" | tr -d '\n' | pbcopy
-```
-
-推送格式为 `v主版本.次版本.修订版本` 的 tag（例如 `v1.5.0`）后，GitHub Actions 会运行测试和 Lint、构建并验证签名 APK，然后创建同名 GitHub Release。tag 中去掉 `v` 的部分会写入 APK 的 `versionName`。
-
-## Android 掌机实机检查
-
-- 熄屏后按电源键，覆盖层应在桌面可操作前出现。
-- 锁定时触摸、方向键、肩键和单次/双次 A 不应操作底层界面。
-- 电源键应仍能正常熄屏和亮屏。
-- ABXY、方向键、肩键、扳机键、Select 和 Start 均应能以同键三击解锁。
-- 连按两次 A 后改按 B，进度应变成 B 的第一次；再按两次 B 应解锁。
-- 同键两次后等待超过 1 秒，再按该键应重新从第一次计数。
-- 亮屏后不操作，约 3 秒应自动息屏；按一次支持的按键后应从该次按键重新计时。
-- 单指横向、纵向或斜向滑动足够距离均应解锁。
-- 点按、短距离移动或两指手势不应解锁。
-- 重启设备或重新开启无障碍服务后不应立即显示遮罩；首次熄屏再亮屏时才应显示。
-- 通知栏和系统导航栏是否被设备固件置于覆盖层之上，需要实机确认。
+需要。进入“设置 → 快霸”，打开“三击解锁服务”开关。
