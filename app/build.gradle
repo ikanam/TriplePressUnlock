@@ -1,5 +1,37 @@
 apply plugin: "com.android.application"
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { stream -> localProperties.load(stream) }
+}
+
+def signingProperty = { String name ->
+    localProperties.getProperty(name)
+            ?: providers.gradleProperty(name).orNull
+            ?: providers.environmentVariable(name).orNull
+}
+
+def releaseStoreFile = signingProperty("RELEASE_STORE_FILE")
+def releaseStorePassword = signingProperty("RELEASE_STORE_PASSWORD")
+def releaseKeyAlias = signingProperty("RELEASE_KEY_ALIAS")
+def releaseKeyPassword = signingProperty("RELEASE_KEY_PASSWORD")
+def releaseSigningValues = [
+        releaseStoreFile,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword,
+]
+def hasAnyReleaseSigning = releaseSigningValues.any { value -> value != null && !value.isBlank() }
+def hasReleaseSigning = releaseSigningValues.every { value -> value != null && !value.isBlank() }
+if (hasAnyReleaseSigning && !hasReleaseSigning) {
+    throw new GradleException("Release signing requires RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD")
+}
+
+def releaseVersionName = providers.environmentVariable("RELEASE_VERSION_NAME").orNull ?: "1.4.0"
+def releaseVersionCodeText = providers.environmentVariable("RELEASE_VERSION_CODE").orNull
+def releaseVersionCode = releaseVersionCodeText == null ? 9 : Integer.parseInt(releaseVersionCodeText)
+
 android {
     namespace "com.jarman.triplepressunlock"
     compileSdk 36
@@ -8,12 +40,26 @@ android {
         applicationId "com.jarman.triplepressunlock"
         minSdk 26
         targetSdk 36
-        versionCode 9
-        versionName "1.4.0"
+        versionCode releaseVersionCode
+        versionName releaseVersionName
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile rootProject.file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }

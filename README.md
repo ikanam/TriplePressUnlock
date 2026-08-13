@@ -67,6 +67,34 @@ adb shell settings put secure enabled_accessibility_services null
 项目只使用 Android 系统 API，没有第三方运行时依赖。
 应用源码与单元测试均使用 Kotlin；界面提供简体中文和英文，并跟随 Android 系统语言自动切换。
 
+## 发布签名与 GitHub Actions
+
+Release 构建会依次从 `local.properties`、Gradle 属性或环境变量读取以下配置：
+
+```properties
+RELEASE_STORE_FILE=/absolute/path/to/keystore.jks
+RELEASE_STORE_PASSWORD=your_store_password
+RELEASE_KEY_ALIAS=your_key_alias
+RELEASE_KEY_PASSWORD=your_key_password
+```
+
+`local.properties` 和常见 keystore 文件格式均已被 Git 忽略，不要把签名文件或密码提交到仓库。
+
+GitHub 仓库需要在 **Settings → Secrets and variables → Actions** 中设置四个 Repository secrets：
+
+- `RELEASE_KEYSTORE_BASE64`：keystore 文件的 Base64 内容
+- `RELEASE_STORE_PASSWORD`：keystore 密码
+- `RELEASE_KEY_ALIAS`：签名密钥别名
+- `RELEASE_KEY_PASSWORD`：签名密钥密码
+
+在 macOS 上可以使用以下命令将 keystore 的 Base64 内容复制到剪贴板，再粘贴为 `RELEASE_KEYSTORE_BASE64`：
+
+```sh
+base64 < "/absolute/path/to/keystore.jks" | tr -d '\n' | pbcopy
+```
+
+推送格式为 `v主版本.次版本.修订版本` 的 tag（例如 `v1.5.0`）后，GitHub Actions 会运行测试和 Lint、构建并验证签名 APK，然后创建同名 GitHub Release。tag 中去掉 `v` 的部分会写入 APK 的 `versionName`。
+
 ## Android 掌机实机检查
 
 - 熄屏后按电源键，覆盖层应在桌面可操作前出现。
