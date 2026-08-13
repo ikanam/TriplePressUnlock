@@ -46,9 +46,11 @@ class UnlockAccessibilityService : AccessibilityService() {
     private var lastDpadSignalAt = 0L
     private var lastDpadSignalFromHat = false
     private var screenReceiverRegistered = false
+    private var unlockPending = false
 
     private val resetPresses = Runnable(::resetPressProgress)
     private val autoScreenOff = Runnable(::requestSystemScreenOff)
+    private val finishPendingUnlock = Runnable(::finishUnlock)
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -136,29 +138,72 @@ class UnlockAccessibilityService : AccessibilityService() {
     }
 
     private fun armForNextScreenOn() {
+        cancelPendingUnlock()
         lockCycleState.onScreenOff()
         resetPressProgress()
         (lockOverlay as? LockOverlayView)?.resetControllerState()
     }
 
     private fun armLock() {
+        cancelPendingUnlock()
         lockCycleState.lockNow()
         resetPressProgress()
         showLockOverlay()
         scheduleAutoScreenOff()
     }
 
-    private fun unlock(hapticFeedback: Boolean) {
+    private fun unlock(hapticFeedback: Boolean, delayMillis: Long = 0L) {
+        if (!lockCycleState.isLocked || unlockPending) return
+
+        unlockPending = true
         if (hapticFeedback) {
             lockOverlay?.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
-        lockCycleState.unlock()
         cancelAutoScreenOff()
+        mainHandler.removeCallbacks(resetPresses)
+        setLockOverlayFocusable(false)
+        mainHandler.postDelayed(finishPendingUnlock, delayMillis)
+    }
+
+    private fun finishUnlock() {
+        if (!unlockPending || !lockCycleState.isLocked) return
+
+        unlockPending = false
+        lockCycleState.unlock()
         resetPressProgress()
         removeLockOverlay()
     }
 
+    private fun cancelPendingUnlock() {
+        val restoreOverlayFocus = unlockPending
+        mainHandler.removeCallbacks(finishPendingUnlock)
+        unlockPending = false
+        if (restoreOverlayFocus) setLockOverlayFocusable(true)
+    }
+
+    private fun setLockOverlayFocusable(focusable: Boolean) {
+        val overlay = lockOverlay ?: return
+        val manager = windowManager ?: return
+        val params = overlay.layoutParams as? WindowManager.LayoutParams ?: return
+        val updatedFlags = if (focusable) {
+            params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        } else {
+            params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        }
+        if (params.flags == updatedFlags) return
+
+        params.flags = updatedFlags
+        try {
+            manager.updateViewLayout(overlay, params)
+            if (focusable) overlay.requestFocus()
+        } catch (exception: RuntimeException) {
+            Log.w(TAG, "Unable to update lock overlay focusability", exception)
+        }
+    }
+
     private fun recordUnlockPress(keyCode: Int, fromHatAxis: Boolean = false) {
+        if (unlockPending) return
+
         val now = SystemClock.elapsedRealtime()
         if (isDpadKey(keyCode)) {
             if (
@@ -180,13 +225,15 @@ class UnlockAccessibilityService : AccessibilityService() {
         lockOverlay?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
 
         if (complete) {
-            unlock(true)
+            unlock(true, THIRD_DOT_DISPLAY_MS)
         } else {
             mainHandler.postDelayed(resetPresses, MAX_PRESS_GAP_MS)
         }
     }
 
     private fun resetPressProgress() {
+        if (unlockPending) return
+
         mainHandler.removeCallbacks(resetPresses)
         pressCounter.reset()
         lastDpadSignalKey = KeyEvent.KEYCODE_UNKNOWN
@@ -364,6 +411,7 @@ class UnlockAccessibilityService : AccessibilityService() {
     }
 
     private fun removeLockOverlay() {
+        cancelPendingUnlock()
         val overlay = lockOverlay
         lockOverlay = null
         progressView = null
@@ -575,6 +623,7 @@ class UnlockAccessibilityService : AccessibilityService() {
         private const val TAG = "TripleUnlock"
         private const val MAX_PRESS_GAP_MS = 1_000L
         private const val AUTO_SCREEN_OFF_MS = 3_000L
+        private const val THIRD_DOT_DISPLAY_MS = 150L
         private const val DUPLICATE_DPAD_SIGNAL_MS = 120L
         private const val SWIPE_UNLOCK_DISTANCE_DP = 120
         @Volatile
