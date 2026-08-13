@@ -27,6 +27,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.lang.ref.WeakReference
@@ -260,6 +261,7 @@ class UnlockAccessibilityService : AccessibilityService() {
     }
 
     private fun createLockOverlay(): View {
+        val appearance = LockAppearanceSettings.load(this)
         val root = LockOverlayView().apply {
             isClickable = true
             isFocusable = true
@@ -272,10 +274,25 @@ class UnlockAccessibilityService : AccessibilityService() {
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            setBackgroundColor(LOCK_BACKGROUND_COLOR)
+            setBackgroundColor(LockAppearanceSettings.DEFAULT_BACKGROUND_COLOR)
         }
 
-        val homeIcon = HomeIconView()
+        appearance.backgroundImageUri?.let { uri ->
+            val backgroundImage = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            root.addView(
+                backgroundImage,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            loadBackgroundImageAsync(root, backgroundImage, uri)
+        }
+
+        val homeIcon = HomeIconView(appearance.iconColor)
         val homeParams = FrameLayout.LayoutParams(dp(124), dp(124), Gravity.CENTER).apply {
             bottomMargin = dp(18)
         }
@@ -289,7 +306,7 @@ class UnlockAccessibilityService : AccessibilityService() {
         val hint = lockText(
             getString(R.string.lock_prompt),
             20,
-            Color.rgb(232, 232, 232),
+            appearance.textColor,
         ).apply { setSingleLine() }
         unlockPrompt.addView(
             hint,
@@ -302,11 +319,11 @@ class UnlockAccessibilityService : AccessibilityService() {
         val swipeHint = lockText(
             getString(R.string.swipe_prompt),
             13,
-            Color.rgb(184, 184, 184),
+            withAlpha(appearance.textColor, 0xBF),
         ).apply { setSingleLine() }
         unlockPrompt.addView(swipeHint, centeredTopMargin(4))
 
-        val progress = lockText("○  ○  ○", 25, Color.rgb(232, 232, 232)).apply {
+        val progress = lockText("○  ○  ○", 25, appearance.textColor).apply {
             letterSpacing = 0.04f
         }
         progressView = progress
@@ -324,6 +341,26 @@ class UnlockAccessibilityService : AccessibilityService() {
         root.addView(unlockPrompt, promptParams)
 
         return root
+    }
+
+    private fun loadBackgroundImageAsync(root: View, imageView: ImageView, uri: String) {
+        val metrics = resources.displayMetrics
+        val targetWidth = metrics.widthPixels
+        val targetHeight = metrics.heightPixels
+        Thread(
+            {
+                val bitmap = LockBackgroundImageLoader.load(this, uri, targetWidth, targetHeight)
+                    ?: return@Thread
+                mainHandler.post {
+                    if (lockOverlay === root || root.isAttachedToWindow) {
+                        imageView.setImageBitmap(bitmap)
+                    } else {
+                        bitmap.recycle()
+                    }
+                }
+            },
+            "LockBackgroundLoader",
+        ).start()
     }
 
     private fun removeLockOverlay() {
@@ -382,6 +419,13 @@ class UnlockAccessibilityService : AccessibilityService() {
         setTextColor(color)
         gravity = Gravity.CENTER
     }
+
+    private fun withAlpha(color: Int, alpha: Int): Int = Color.argb(
+        alpha,
+        Color.red(color),
+        Color.green(color),
+        Color.blue(color),
+    )
 
     private fun centeredTopMargin(marginDp: Int): LinearLayout.LayoutParams =
         LinearLayout.LayoutParams(
@@ -460,7 +504,7 @@ class UnlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    private inner class HomeIconView : View(this@UnlockAccessibilityService) {
+    private inner class HomeIconView(private val iconColor: Int) : View(this@UnlockAccessibilityService) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val housePath = Path()
 
@@ -476,13 +520,14 @@ class UnlockAccessibilityService : AccessibilityService() {
             val centerX = viewWidth / 2f
             val centerY = viewHeight / 2f
 
-            paint.color = Color.rgb(232, 232, 232)
+            paint.color = iconColor
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = size * 0.052f
             canvas.drawCircle(centerX, centerY, size * 0.445f, paint)
 
             paint.style = Paint.Style.FILL
             housePath.reset()
+            housePath.fillType = Path.FillType.EVEN_ODD
             housePath.moveTo(centerX, viewHeight * 0.275f)
             housePath.lineTo(viewWidth * 0.235f, viewHeight * 0.485f)
             housePath.quadTo(
@@ -515,16 +560,14 @@ class UnlockAccessibilityService : AccessibilityService() {
                 viewHeight * 0.485f,
             )
             housePath.close()
-            canvas.drawPath(housePath, paint)
-
-            paint.color = LOCK_BACKGROUND_COLOR
-            canvas.drawRect(
+            housePath.addRect(
                 viewWidth * 0.425f,
                 viewHeight * 0.535f,
                 viewWidth * 0.575f,
                 viewHeight * 0.655f,
-                paint,
+                Path.Direction.CW,
             )
+            canvas.drawPath(housePath, paint)
         }
     }
 
@@ -534,8 +577,6 @@ class UnlockAccessibilityService : AccessibilityService() {
         private const val AUTO_SCREEN_OFF_MS = 3_000L
         private const val DUPLICATE_DPAD_SIGNAL_MS = 120L
         private const val SWIPE_UNLOCK_DISTANCE_DP = 120
-        private val LOCK_BACKGROUND_COLOR = Color.rgb(29, 29, 29)
-
         @Volatile
         private var connectedInstance = WeakReference<UnlockAccessibilityService>(null)
 
