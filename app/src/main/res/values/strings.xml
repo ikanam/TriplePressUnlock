@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">三击解锁</string>
+    <string name="accessibility_service_name">三击解锁服务</string>
+    <string name="accessibility_description">只监听亮屏、熄屏和实体手柄按键，用全屏覆盖层防止误触；不读取其他应用的界面内容。</string>
+    <string name="lock_prompt">按同一按键3次解锁</string>
+    <string name="swipe_prompt">或滑动屏幕解锁</string>
+    <string name="screen_eyebrow">TRIPLEPRESS · 防误触</string>
+    <string name="screen_title">同键三击解锁</string>
+    <string name="screen_summary">按电源键亮屏后，可连续按三次同一个支持的手柄按键，或单指滑动屏幕进入系统。</string>
+    <string name="supported_keys">支持 ABXY、方向键、R1/R2、L1/L2、Select 和 Start</string>
+    <string name="open_accessibility_settings">打开无障碍设置</string>
+    <string name="accessibility_settings_error">无法打开无障碍设置</string>
+    <string name="test_lock_overlay">立即测试锁定界面</string>
+    <string name="accessibility_required">请先开启无障碍服务</string>
+    <string name="open_security_settings">打开系统锁屏设置</string>
+    <string name="security_settings_error">无法打开系统锁屏设置</string>
+    <string name="setup_steps_title">启用步骤</string>
+    <string name="setup_steps">1. 将系统锁屏方式设置为“无”\n2. 在无障碍设置中开启“三击解锁服务”\n3. 立即测试，确认手柄按键可以解锁\n4. 在设备的电池或后台管理中允许应用在后台运行</string>
+    <string name="touch_unlock_and_disclaimer">触屏解锁：单指向任意方向滑动足够距离即可解锁；轻触或轻微移动不会解锁。\n\n此应用只用于防误触，不代替 PIN、密码或系统加密锁。它不读取界面内容、不联网、不轮询，也不持有唤醒锁。</string>
+    <string name="service_enabled">● 服务已开启</string>
+    <string name="service_disabled">● 服务未开启</string>
+</resources>

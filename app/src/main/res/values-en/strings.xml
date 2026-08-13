@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TriplePress Unlock</string>
+    <string name="accessibility_service_name">TriplePress Unlock Service</string>
+    <string name="accessibility_description">Listens only for screen state and physical controller input, then uses a full-screen overlay to prevent accidental input. It does not read content from other apps.</string>
+    <string name="lock_prompt">Press the same button 3 times</string>
+    <string name="swipe_prompt">or swipe to unlock</string>
+    <string name="screen_eyebrow">TRIPLEPRESS · ACCIDENTAL INPUT GUARD</string>
+    <string name="screen_title">Triple-press to unlock</string>
+    <string name="screen_summary">After waking the screen, press the same supported controller button three times or swipe with one finger to enter the system.</string>
+    <string name="supported_keys">Supports ABXY, D-pad, R1/R2, L1/L2, Select, and Start</string>
+    <string name="open_accessibility_settings">Open Accessibility Settings</string>
+    <string name="accessibility_settings_error">Unable to open Accessibility Settings</string>
+    <string name="test_lock_overlay">Test Lock Screen Now</string>
+    <string name="accessibility_required">Enable the accessibility service first</string>
+    <string name="open_security_settings">Open System Screen Lock Settings</string>
+    <string name="security_settings_error">Unable to open screen lock settings</string>
+    <string name="setup_steps_title">Setup</string>
+    <string name="setup_steps">1. Set the system screen lock to “None”\n2. Enable “TriplePress Unlock Service” in Accessibility Settings\n3. Test it and confirm controller buttons can unlock the screen\n4. Allow the app to run in the background in your device’s battery or background settings</string>
+    <string name="touch_unlock_and_disclaimer">Touch unlock: Swipe far enough in any direction with one finger. A tap or small movement will not unlock.\n\nThis app only prevents accidental input. It does not replace a PIN, password, or encrypted system lock. It does not read screen content, access the network, poll in the background, or hold a wake lock.</string>
+    <string name="service_enabled">● Service enabled</string>
+    <string name="service_disabled">● Service disabled</string>
+</resources>
