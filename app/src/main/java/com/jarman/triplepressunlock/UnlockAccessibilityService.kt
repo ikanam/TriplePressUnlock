@@ -11,11 +11,14 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.RectF
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import android.text.format.DateFormat
 import android.util.Log
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -31,6 +34,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.lang.ref.WeakReference
+import java.util.Date
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -40,8 +44,12 @@ class UnlockAccessibilityService : AccessibilityService() {
     private val lockCycleState = LockCycleState()
     private var windowManager: WindowManager? = null
     private var powerManager: PowerManager? = null
+    private var batteryManager: BatteryManager? = null
     private var lockOverlay: View? = null
     private var progressView: TextView? = null
+    private var statusTimeView: TextView? = null
+    private var statusBatteryView: TextView? = null
+    private var statusBatteryIconView: BatteryIconView? = null
     private var lastDpadSignalKey = KeyEvent.KEYCODE_UNKNOWN
     private var lastDpadSignalAt = 0L
     private var lastDpadSignalFromHat = false
@@ -50,7 +58,7 @@ class UnlockAccessibilityService : AccessibilityService() {
 
     private val resetPresses = Runnable(::resetPressProgress)
     private val autoScreenOff = Runnable(::requestSystemScreenOff)
-    private val finishPendingUnlock = Runnable(::finishUnlock)
+    private val startUnlockFade = Runnable(::fadeOutAndFinishUnlock)
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -74,6 +82,7 @@ class UnlockAccessibilityService : AccessibilityService() {
         lockCycleState.onServiceConnected()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        batteryManager = getSystemService(BATTERY_SERVICE) as BatteryManager
 
         serviceInfo?.let { info ->
             info.eventTypes = 0
@@ -162,7 +171,25 @@ class UnlockAccessibilityService : AccessibilityService() {
         cancelAutoScreenOff()
         mainHandler.removeCallbacks(resetPresses)
         setLockOverlayFocusable(false)
-        mainHandler.postDelayed(finishPendingUnlock, delayMillis)
+        mainHandler.postDelayed(startUnlockFade, delayMillis)
+    }
+
+    private fun fadeOutAndFinishUnlock() {
+        if (!unlockPending || !lockCycleState.isLocked) return
+
+        val overlay = lockOverlay
+        if (overlay == null) {
+            finishUnlock()
+            return
+        }
+
+        overlay.animate()
+            .alpha(0f)
+            .setDuration(UNLOCK_FADE_OUT_MS)
+            .withEndAction {
+                if (unlockPending && lockOverlay === overlay) finishUnlock()
+            }
+            .start()
     }
 
     private fun finishUnlock() {
@@ -175,10 +202,14 @@ class UnlockAccessibilityService : AccessibilityService() {
     }
 
     private fun cancelPendingUnlock() {
-        val restoreOverlayFocus = unlockPending
-        mainHandler.removeCallbacks(finishPendingUnlock)
+        val restoreOverlay = unlockPending
         unlockPending = false
-        if (restoreOverlayFocus) setLockOverlayFocusable(true)
+        mainHandler.removeCallbacks(startUnlockFade)
+        if (restoreOverlay) {
+            lockOverlay?.animate()?.cancel()
+            lockOverlay?.alpha = 1f
+            setLockOverlayFocusable(true)
+        }
     }
 
     private fun setLockOverlayFocusable(focusable: Boolean) {
@@ -276,7 +307,10 @@ class UnlockAccessibilityService : AccessibilityService() {
     private fun isScreenInteractive(): Boolean = powerManager?.isInteractive == true
 
     private fun showLockOverlay() {
-        if (lockOverlay != null) return
+        if (lockOverlay != null) {
+            updateLockStatus()
+            return
+        }
         val manager = windowManager ?: return
 
         val overlay = createLockOverlay()
@@ -301,8 +335,10 @@ class UnlockAccessibilityService : AccessibilityService() {
             lockOverlay = overlay
             overlay.requestFocus()
             updateProgress()
+            updateLockStatus()
         } catch (exception: RuntimeException) {
             progressView = null
+            clearLockStatusViews()
             Log.e(TAG, "Unable to add lock overlay", exception)
         }
     }
@@ -338,6 +374,63 @@ class UnlockAccessibilityService : AccessibilityService() {
             )
             loadBackgroundImageAsync(root, backgroundImage, uri)
         }
+
+        val status = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+
+        val time = lockText("", 20, appearance.textColor).apply {
+            setSingleLine()
+            includeFontPadding = false
+            fontFeatureSettings = "tnum"
+        }
+        statusTimeView = time
+        status.addView(
+            time,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+
+        val battery = lockText("", 20, appearance.textColor).apply {
+            setSingleLine()
+            includeFontPadding = false
+            fontFeatureSettings = "tnum"
+        }
+        statusBatteryView = battery
+        status.addView(
+            battery,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                marginStart = dp(20)
+            },
+        )
+
+        val batteryIcon = BatteryIconView(appearance.textColor)
+        statusBatteryIconView = batteryIcon
+        status.addView(
+            batteryIcon,
+            LinearLayout.LayoutParams(dp(30), dp(16)).apply {
+                marginStart = dp(8)
+            },
+        )
+
+        root.addView(
+            status,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.END,
+            ).apply {
+                topMargin = dp(22)
+                marginEnd = dp(28)
+            },
+        )
 
         val homeIcon = HomeIconView(appearance.iconColor)
         val homeParams = FrameLayout.LayoutParams(dp(124), dp(124), Gravity.CENTER).apply {
@@ -390,6 +483,22 @@ class UnlockAccessibilityService : AccessibilityService() {
         return root
     }
 
+    private fun updateLockStatus() {
+        statusTimeView?.text = DateFormat.getTimeFormat(this).format(Date())
+
+        val batteryPercent = batteryManager
+            ?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            ?.takeIf { it in 0..100 }
+        statusBatteryView?.text = batteryPercent?.let { "$it%" } ?: "--%"
+        statusBatteryIconView?.setBatteryLevel(batteryPercent ?: 0)
+    }
+
+    private fun clearLockStatusViews() {
+        statusTimeView = null
+        statusBatteryView = null
+        statusBatteryIconView = null
+    }
+
     private fun loadBackgroundImageAsync(root: View, imageView: ImageView, uri: String) {
         val metrics = resources.displayMetrics
         val targetWidth = metrics.widthPixels
@@ -415,6 +524,7 @@ class UnlockAccessibilityService : AccessibilityService() {
         val overlay = lockOverlay
         lockOverlay = null
         progressView = null
+        clearLockStatusViews()
         cancelAutoScreenOff()
         val manager = windowManager
         if (overlay != null && manager != null) {
@@ -552,6 +662,70 @@ class UnlockAccessibilityService : AccessibilityService() {
         }
     }
 
+    private inner class BatteryIconView(private val iconColor: Int) :
+        View(this@UnlockAccessibilityService) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val bounds = RectF()
+        private var batteryLevel = 0
+
+        init {
+            importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+
+        fun setBatteryLevel(level: Int) {
+            batteryLevel = level.coerceIn(0, 100)
+            invalidate()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val viewWidth = width.toFloat()
+            val viewHeight = height.toFloat()
+            val strokeWidth = viewHeight * 0.1f
+            val terminalWidth = viewHeight * 0.13f
+            val terminalGap = viewHeight * 0.06f
+            val bodyRight = viewWidth - terminalWidth - terminalGap
+
+            paint.color = iconColor
+            paint.strokeWidth = strokeWidth
+            paint.style = Paint.Style.STROKE
+            bounds.set(
+                strokeWidth / 2f,
+                strokeWidth / 2f,
+                bodyRight - strokeWidth / 2f,
+                viewHeight - strokeWidth / 2f,
+            )
+            val bodyRadius = viewHeight * 0.14f
+            canvas.drawRoundRect(bounds, bodyRadius, bodyRadius, paint)
+
+            paint.style = Paint.Style.FILL
+            bounds.set(
+                bodyRight + terminalGap,
+                viewHeight * 0.31f,
+                viewWidth,
+                viewHeight * 0.69f,
+            )
+            val terminalRadius = viewHeight * 0.06f
+            canvas.drawRoundRect(bounds, terminalRadius, terminalRadius, paint)
+
+            val fillInset = strokeWidth * 1.7f
+            val fillLeft = fillInset
+            val fillRightLimit = bodyRight - fillInset
+            val fillRight = fillLeft +
+                (fillRightLimit - fillLeft) * (batteryLevel / 100f)
+            if (fillRight > fillLeft) {
+                bounds.set(
+                    fillLeft,
+                    fillInset,
+                    fillRight,
+                    viewHeight - fillInset,
+                )
+                val fillRadius = viewHeight * 0.06f
+                canvas.drawRoundRect(bounds, fillRadius, fillRadius, paint)
+            }
+        }
+    }
+
     private inner class HomeIconView(private val iconColor: Int) : View(this@UnlockAccessibilityService) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val housePath = Path()
@@ -624,6 +798,7 @@ class UnlockAccessibilityService : AccessibilityService() {
         private const val MAX_PRESS_GAP_MS = 1_000L
         private const val AUTO_SCREEN_OFF_MS = 3_000L
         private const val THIRD_DOT_DISPLAY_MS = 150L
+        private const val UNLOCK_FADE_OUT_MS = 150L
         private const val DUPLICATE_DPAD_SIGNAL_MS = 120L
         private const val SWIPE_UNLOCK_DISTANCE_DP = 120
         @Volatile
